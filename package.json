@@ -1,0 +1,30 @@
+{
+  "name": "proofofhumanitycirclesproxy",
+  "version": "1.0.0",
+  "description": "A proxy contract for Proof of Humanity Circles integration",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "clean": "hardhat clean",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.ts --network localhost",
+    "lint": "solhint 'contracts/**/*.sol'",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "ethereum",
+    "smart-contracts",
+    "proof-of-humanity",
+    "circles",
+    "proxy"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.2.0",
+    "dotenv": "^16.4.7",
+    "hardhat": "^2.22.19"
+  }
+}
