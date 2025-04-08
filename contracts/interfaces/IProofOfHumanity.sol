@@ -17,7 +17,7 @@ interface IProofOfHumanity {
         view
         returns (
             bool vouching,
-            bool pendingRevokal,
+            bool pendingRevocation,
             uint48 nbPendingRequests,
             uint40 expirationTime,
             address owner,

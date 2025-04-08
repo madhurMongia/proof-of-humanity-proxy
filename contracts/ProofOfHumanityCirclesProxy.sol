@@ -13,7 +13,7 @@ import "./interfaces/IProofOfHumanityCirclesProxy.sol";
 contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
     /// @notice Constant value for untrusting a member (setting expiry to 0)
-    uint96 private constant UNTRUST_EXPIRY = 0;
+    uint96 private constant UNTRUST_EXPIRY_TIMESTAMP = 0;
 
     /// @dev Address with administrative privileges
     address public governor;
@@ -24,14 +24,31 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     /// @notice Reference to the Circles Core Members Group contract
     ICoreMembersGroup public coreMembersGroup;
 
+    /// @dev Custom errors
+    error NotGovernor();
+    error NotHuman(address account);
+    error IsHuman(address account);
+
     /**
      * @dev Restricts function access to the governor only
      * Provides administrative protection for sensitive operations
      */
     modifier onlyGovernor() {
-        require(msg.sender == governor);
+        if (msg.sender != governor) revert NotGovernor();
         _;
     }
+
+    /**
+     * @dev Emitted when a member is added to the Circles Group
+     * @param member The address of the member added
+     */
+    event MemberAdded(address indexed member);
+
+    /**
+     * @dev Emitted when members are removed from the Circles Group
+     * @param members The addresses of the members removed
+     */
+    event MembersRemoved(address[] members);
 
     /**
      * @dev Initializes the proxy contract with required external contracts
@@ -76,14 +93,15 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param _account Address of the account to trust
      */
     function addMember(address _account) external {
-
-        require(proofOfHumanity.isHuman(_account));
+        if (!proofOfHumanity.isHuman(_account)) revert NotHuman(_account);
 
         (,,,uint40 expirationTime,,) = proofOfHumanity.getHumanityInfo(proofOfHumanity.humanityOf(_account));
         /// trust will expire at the same time as the humanity
         address[] memory accounts = new address[](1);
         accounts[0] = _account;
         coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
+
+        emit MemberAdded(_account);
     }
 
     /**
@@ -91,13 +109,14 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param _accounts Addresses of the accounts to untrust
      */
     function removeMembersBatch(address[] memory _accounts) external {
-
         uint256 length = _accounts.length;
 
-        address[] memory accounts = new address[](length);
         for(uint256 i = 0; i < length; i++){
-            require(proofOfHumanity.isHuman(_accounts[i]));
+            bool isHuman = proofOfHumanity.isHuman(_accounts[i]);
+            if (isHuman) revert IsHuman(_accounts[i]);
         }
-        coreMembersGroup.trustBatchWithConditions(accounts, UNTRUST_EXPIRY);
+        coreMembersGroup.trustBatchWithConditions(_accounts, UNTRUST_EXPIRY_TIMESTAMP);
+
+        emit MembersRemoved(_accounts);
     }
 }

@@ -15,9 +15,9 @@ interface IProofOfHumanityCirclesProxy {
 
     /**
      * @dev Removes a member from the Circles Group
-     * @param _account Address of the account to remove
+     * @param _accounts Addresses of the accounts to remove
      */
-    function removeMembersBatch(address _account) external;
+    function removeMembersBatch(address[] memory _accounts) external;
 
     /**
      * @dev Updates the address of the Proof of Humanity registry
