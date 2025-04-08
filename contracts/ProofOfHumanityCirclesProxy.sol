@@ -20,9 +20,6 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
     /// @notice Reference to the Proof of Humanity registry contract
     IProofOfHumanity public proofOfHumanity;
-    
-    /// @notice Reference to the Circles Core Members Group contract
-    ICoreMembersGroup public coreMembersGroup;
 
     /// @dev Custom errors
     error NotGovernor();
@@ -53,11 +50,9 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     /**
      * @dev Initializes the proxy contract with required external contracts
      * @param _proofOfHumanity Address of the Proof of Humanity registry contract
-     * @param _coreMembersGroup Address of the Circles Core Members Group contract
      */
-    constructor(address _proofOfHumanity, address _coreMembersGroup) {
+    constructor(address _proofOfHumanity) {
         proofOfHumanity = IProofOfHumanity(_proofOfHumanity);
-        coreMembersGroup = ICoreMembersGroup(_coreMembersGroup);
         governor = msg.sender; // Set deployer as initial governor
     }
 
@@ -68,15 +63,6 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      */
     function changeProofOfHumanity(address _proofOfHumanity) external onlyGovernor {
         proofOfHumanity = IProofOfHumanity(_proofOfHumanity);
-    }
-
-    /**
-     * @dev Updates the address of the Circles Group
-     * @param _coreMembersGroup New address for the Circles Group
-     * Can only be called by the governor
-     */
-    function changeCoreMembersGroup(address _coreMembersGroup) external onlyGovernor {
-        coreMembersGroup = ICoreMembersGroup(_coreMembersGroup);
     }
 
     /**
@@ -92,14 +78,14 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @dev Trusts/Add an accounts in the Circles Group
      * @param _account Address of the account to trust
      */
-    function addMember(address _account) external {
+    function addMember(address _account, ICoreMembersGroup _coreMembersGroup) external {
         if (!proofOfHumanity.isHuman(_account)) revert NotHuman(_account);
 
         (,,,uint40 expirationTime,,) = proofOfHumanity.getHumanityInfo(proofOfHumanity.humanityOf(_account));
         /// trust will expire at the same time as the humanity
         address[] memory accounts = new address[](1);
         accounts[0] = _account;
-        coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
+        _coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
 
         emit MemberAdded(_account);
     }
@@ -108,14 +94,14 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @dev Untrusts/Remove an account from the Circles Group
      * @param _accounts Addresses of the accounts to untrust
      */
-    function removeMembersBatch(address[] memory _accounts) external {
+    function removeMembersBatch(address[] memory _accounts ,ICoreMembersGroup _coreMembersGroup) external {
         uint256 length = _accounts.length;
 
         for(uint256 i = 0; i < length; i++){
             bool isHuman = proofOfHumanity.isHuman(_accounts[i]);
             if (isHuman) revert IsHuman(_accounts[i]);
         }
-        coreMembersGroup.trustBatchWithConditions(_accounts, UNTRUST_EXPIRY_TIMESTAMP);
+        _coreMembersGroup.trustBatchWithConditions(_accounts, UNTRUST_EXPIRY_TIMESTAMP);
 
         emit MembersRemoved(_accounts);
     }

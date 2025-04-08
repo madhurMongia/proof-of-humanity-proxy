@@ -8,9 +8,17 @@ This project implements a proxy contract that allows Circles to verify human ide
 
 ## Features
 
+- Integrates Proof of Humanity verification with Circles
+- Adds verified humans to Circles as members
+- Allows removal of members who are no longer verified by PoH
+- Supports governance control for admin operations
 
 ## Technical Architecture
 
+The `ProofOfHumanityCirclesProxy` contract serves as a bridge between the Proof of Humanity registry and the Circles Core Members Group. It allows:
+
+1. Adding members to Circles if they're verified in Proof of Humanity
+2. Removing members from Circles if they're no longer verified
 
 ## Getting Started
 
@@ -39,37 +47,85 @@ cp .env.example .env
 Edit the `.env` file and add your configuration values:
 
 ```
-PRIVATE_KEY=your_private_key
+# Network API Keys
 INFURA_API_KEY=your_infura_api_key
+ALCHEMY_API_KEY=your_alchemy_api_key
+
+# Deployment
+PRIVATE_KEY=your_private_key_here
+
+# Verification
 ETHERSCAN_API_KEY=your_etherscan_api_key
+
+# Contract Parameters
+PROOF_OF_HUMANITY_ADDRESS=0x1000000000000000000000000000000000000000
+CORE_MEMBERS_GROUP_ADDRESS=0x2000000000000000000000000000000000000000
 ```
 
 ### Compiling
 
 ```bash
-npm run compile
+npx hardhat compile
 ```
 
 ### Testing
 
 ```bash
-npm test
+npx hardhat test
 ```
 
-### Deployment
+## Deployment and Verification
+
+You can deploy the contract using either Hardhat scripts or Hardhat Ignition.
+
+### Using Hardhat Scripts
 
 ```bash
 # Deploy to a local Hardhat node
-npm run node
-npm run deploy
+npx hardhat node
+npx hardhat run scripts/deploy.ts --network localhost
 
-# Deploy to a testnet (Goerli)
-npm run deploy -- --network goerli
+# Deploy to a testnet (Sepolia)
+npx hardhat run scripts/deploy.ts --network sepolia
+
+# Deploy to mainnet
+npx hardhat run scripts/deploy.ts --network mainnet
+```
+
+The deployment script automatically attempts to verify the contract on Etherscan.
+
+### Using Hardhat Ignition
+
+```bash
+# Deploy to a local Hardhat node
+npx hardhat ignition deploy ignition/modules/deploy.ts --network localhost
+
+# Deploy to a testnet (Sepolia)
+npx hardhat ignition deploy ignition/modules/deploy.ts --network sepolia
+
+# Deploy to mainnet
+npx hardhat ignition deploy ignition/modules/deploy.ts --network mainnet
+```
+
+### Manual Verification
+
+If the automatic verification fails, you can manually verify the contract:
+
+```bash
+npx hardhat verify --network sepolia <DEPLOYED_CONTRACT_ADDRESS> <PROOF_OF_HUMANITY_ADDRESS> <CORE_MEMBERS_GROUP_ADDRESS>
+```
+
+### Flattening Contract for Verification
+
+If you need to manually verify the contract on Etherscan, you can flatten it:
+
+```bash
+npx hardhat flatten contracts/ProofOfHumanityCirclesProxy.sol > ProofOfHumanityCirclesProxy_flattened.sol
 ```
 
 ## Contract Addresses
 
-- Goerli Testnet: `TBD`
+- Sepolia Testnet: `TBD`
 - Mainnet: `TBD`
 
 ## License
