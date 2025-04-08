@@ -75,7 +75,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     }
 
     /**
-     * @dev Trusts/Add an accounts in the Circles Group
+     * @dev Trusts/Add an account in the Circles Group
      * @param _account Address of the account to trust
      */
     function addMember(address _account, ICoreMembersGroup _coreMembersGroup) external {
@@ -91,7 +91,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     }
 
     /**
-     * @dev Untrusts/Remove an account from the Circles Group
+     * @dev Untrusts/Remove accounts from the Circles Group
      * @param _accounts Addresses of the accounts to untrust
      */
     function removeMembersBatch(address[] memory _accounts ,ICoreMembersGroup _coreMembersGroup) external {
