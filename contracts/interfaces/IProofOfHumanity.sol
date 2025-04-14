@@ -7,6 +7,8 @@ interface IProofOfHumanity {
     /* Views */
 
     function isHuman(address _address) external view returns (bool);
+    
+    function isClaimed(bytes20 _humanityId) external view returns (bool);
 
     function humanityOf(address _account) external view returns (bytes20 humanityId);
 

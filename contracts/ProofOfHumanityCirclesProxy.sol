@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: MIT
+/**
+ *  @authors: [madhurMongia]
+ *  @reviewers: []
+ *  @auditors: []
+ *  @bounties: []
+ *  @deployments: []
+ */
+
 pragma solidity >=0.8.28;
 
 import "./interfaces/IProofOfHumanity.sol";
 import "./interfaces/ICoreMembersGroup.sol";
 import "./interfaces/IProofOfHumanityCirclesProxy.sol";
-
+import "./interfaces/IHub.sol";
 /**
  * @title ProofOfHumanityCirclesProxy
  * @dev A proxy contract that bridges Proof of Humanity verification with Circles.
@@ -13,7 +21,7 @@ import "./interfaces/IProofOfHumanityCirclesProxy.sol";
 contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
     /// @notice Constant value for untrusting a member (setting expiry to 0)
-    uint96 private constant UNTRUST_EXPIRY_TIMESTAMP = 0;
+    uint96 public constant UNTRUST_EXPIRY_TIMESTAMP = 0;
 
     /// @dev Address with administrative privileges
     address public governor;
@@ -21,17 +29,19 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     /// @notice Reference to the Proof of Humanity registry contract
     IProofOfHumanity public proofOfHumanity;
 
-    /// @dev Custom errors
-    error NotGovernor();
-    error NotHuman(address account);
-    error IsHuman(address account);
+    /// @notice Reference to the Hub contract
+   // IHubV2 public hub;
 
+    /// @notice Reference to the Core Members Group contract
+    ICoreMembersGroup public coreMembersGroup;
+
+    mapping(bytes20 => address) public humanityIDToCriclesAccount;
     /**
      * @dev Restricts function access to the governor only
      * Provides administrative protection for sensitive operations
      */
     modifier onlyGovernor() {
-        if (msg.sender != governor) revert NotGovernor();
+        require(msg.sender == governor, "Only governor can call this function");
         _;
     }
 
@@ -39,20 +49,37 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @dev Emitted when a member is added to the Circles Group
      * @param member The address of the member added
      */
-    event MemberAdded(address indexed member);
+    event MemberRegistered(bytes20 indexed humanityID, address indexed member);
 
     /**
      * @dev Emitted when members are removed from the Circles Group
-     * @param members The addresses of the members removed
+     * @param humanityIDs The humanity IDs of the members removed
      */
-    event MembersRemoved(address[] members);
+    event MembersRemoved(bytes20[] humanityIDs);
+
+    /**
+     * @dev Emitted when a member is added to the Circles Group
+     * @param humanityID The humanity ID of the account to re-trust
+     * @param oldAccount The old account that was replaced
+     * @param newAccount The new account that replaced the old account
+     */
+    event TrustTransferred(bytes20 indexed humanityID, address indexed oldAccount, address indexed newAccount);
+
+    /**
+     * @dev Emitted when a member is renewed in the Circles Group
+     * @param humanityID The humanity ID of the account to re-trust
+     * @param account The account that was renewed
+     */
+    event TrustRenewed(bytes20 indexed humanityID, address indexed account);
 
     /**
      * @dev Initializes the proxy contract with required external contracts
      * @param _proofOfHumanity Address of the Proof of Humanity registry contract
+     * @param _coreMembersGroup Address of the POH Core Members Group contract
      */
-    constructor(address _proofOfHumanity) {
+    constructor(address _proofOfHumanity, address _coreMembersGroup) {
         proofOfHumanity = IProofOfHumanity(_proofOfHumanity);
+        coreMembersGroup = ICoreMembersGroup(_coreMembersGroup);
         governor = msg.sender; // Set deployer as initial governor
     }
 
@@ -66,6 +93,15 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     }
 
     /**
+     * @dev Updates the address of the Core Members Group contract
+     * @param _coreMembersGroup New address for the POH Core Members Group contract
+     * Can only be called by the governor
+     */
+    function changeCoreMembersGroup(address _coreMembersGroup) external onlyGovernor {
+        coreMembersGroup = ICoreMembersGroup(_coreMembersGroup);
+    }
+
+    /**
      * @dev Transfers governorship to a new address
      * @param _newGovernor Address of the new governor
      * Can only be called by the current governor
@@ -76,33 +112,58 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
     /**
      * @dev Trusts/Add an account in the Circles Group
-     * @param _account Address of the account to trust
+     * @param humanityID The humanity ID of the account to trust
+     * @param _account Address of the circles account to trust in POH group
      */
-    function addMember(address _account, ICoreMembersGroup _coreMembersGroup) external {
-        if (!proofOfHumanity.isHuman(_account)) revert NotHuman(_account);
+    function register(bytes20 humanityID, address _account) external {
+        (,,,uint40 expirationTime,address owner,) = proofOfHumanity.getHumanityInfo(humanityID);
 
-        (,,,uint40 expirationTime,,) = proofOfHumanity.getHumanityInfo(proofOfHumanity.humanityOf(_account));
-        /// trust will expire at the same time as the humanity
+        require(owner == msg.sender, "You are not the owner of this humanity ID");
+        require(humanityIDToCriclesAccount[humanityID] == address(0), "Account is already registered");
+        require(proofOfHumanity.isHuman(owner), "Account is not a human");
+
+        humanityIDToCriclesAccount[humanityID] = _account;
+          // trust will expire at the same time as the humanity.
         address[] memory accounts = new address[](1);
         accounts[0] = _account;
-        _coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
+        coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
 
-        emit MemberAdded(_account);
+        emit MemberRegistered(humanityID, _account);
+    }
+    
+    /**
+     * @dev Re-trusts an account in the Circles Group, after renewing humanity in POH
+     * @param humanityID The humanity ID of the account to re-trust
+     */
+    function renewTrust(bytes20 humanityID) external {
+        require(humanityIDToCriclesAccount[humanityID] != address(0), "Account is not registered");
+
+        (,,,uint40 expirationTime,,) = proofOfHumanity.getHumanityInfo(humanityID);
+        address account = humanityIDToCriclesAccount[humanityID];
+        address[] memory accounts = new address[](1);
+        accounts[0] = account;
+        coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
+
+        emit TrustRenewed(humanityID, account);
     }
 
+  
     /**
-     * @dev Untrusts/Remove accounts from the Circles Group
-     * @param _accounts Addresses of the accounts to untrust
+     * @dev Untrusts/Removes expired or revoked accounts from the Circles Group
+     * @param humanityIDs humanity IDs of the expired or revoked accounts to untrust
      */
-    function removeMembersBatch(address[] memory _accounts ,ICoreMembersGroup _coreMembersGroup) external {
-        uint256 length = _accounts.length;
-
+    function revokeTrust(bytes20[] memory humanityIDs) external {
+        uint256 length = humanityIDs.length;
+        bytes20 humanityID;
+        address[] memory accounts = new address[](length);
         for(uint256 i = 0; i < length; i++){
-            bool isHuman = proofOfHumanity.isHuman(_accounts[i]);
-            if (isHuman) revert IsHuman(_accounts[i]);
+            humanityID = humanityIDs[i];
+            bool isHuman = proofOfHumanity.isClaimed(humanityID);
+            require(!isHuman, "Account is still registered as human");
+            accounts[i] = humanityIDToCriclesAccount[humanityID];
         }
-        _coreMembersGroup.trustBatchWithConditions(_accounts, UNTRUST_EXPIRY_TIMESTAMP);
+        coreMembersGroup.trustBatchWithConditions(accounts, UNTRUST_EXPIRY_TIMESTAMP);
 
-        emit MembersRemoved(_accounts);
+        emit MembersRemoved(humanityIDs);
     }
 }
