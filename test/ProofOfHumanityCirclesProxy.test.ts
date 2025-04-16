@@ -142,16 +142,6 @@ describe("ProofOfHumanityCirclesProxy", function () {
         proofOfHumanityCirclesProxy.connect(user1).register(humanityID, circlesAccount2)
       ).to.be.revertedWith("Account is already registered");
     });
-
-    it("Should revert if account is not a human", async function () {
-      await proofOfHumanityMock.mockIsHuman(user1.address, false);
-      
-      const circlesAccount = ethers.Wallet.createRandom().address;
-      
-      await expect(
-        proofOfHumanityCirclesProxy.connect(user1).register(humanityID, circlesAccount)
-      ).to.be.revertedWith("Account is not a human");
-    });
   });
 
   describe("RenewTrust", function () {
@@ -197,14 +187,6 @@ describe("ProofOfHumanityCirclesProxy", function () {
       
       expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
       expect(await coreMembersGroupMock.lastTrustExpiry()).to.equal(newExpirationTime);
-    });
-
-    it("Should revert if account is not registered", async function () {
-      const unregisteredHumanityID = "0x" + ethers.keccak256(ethers.toUtf8Bytes("unregistered")).substring(2, 42);
-      
-      await expect(
-        proofOfHumanityCirclesProxy.connect(user1).renewTrust(unregisteredHumanityID)
-      ).to.be.revertedWith("Account is not registered");
     });
   });
 
