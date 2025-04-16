@@ -12,7 +12,6 @@ pragma solidity >=0.8.28;
 import "./interfaces/IProofOfHumanity.sol";
 import "./interfaces/ICoreMembersGroup.sol";
 import "./interfaces/IProofOfHumanityCirclesProxy.sol";
-import "./interfaces/IHub.sol";
 /**
  * @title ProofOfHumanityCirclesProxy
  * @dev A proxy contract that bridges Proof of Humanity verification with Circles.
@@ -120,7 +119,6 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
         require(owner == msg.sender, "You are not the owner of this humanity ID");
         require(humanityIDToCriclesAccount[humanityID] == address(0), "Account is already registered");
-        require(proofOfHumanity.isHuman(owner), "Account is not a human");
 
         humanityIDToCriclesAccount[humanityID] = _account;
           // trust will expire at the same time as the humanity.
@@ -136,10 +134,9 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param humanityID The humanity ID of the account to re-trust
      */
     function renewTrust(bytes20 humanityID) external {
-        require(humanityIDToCriclesAccount[humanityID] != address(0), "Account is not registered");
-
         (,,,uint40 expirationTime,,) = proofOfHumanity.getHumanityInfo(humanityID);
         address account = humanityIDToCriclesAccount[humanityID];
+
         address[] memory accounts = new address[](1);
         accounts[0] = account;
         coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));

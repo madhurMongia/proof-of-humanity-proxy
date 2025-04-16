@@ -1,11 +1,17 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import { 
+    ProofOfHumanityCirclesProxy,
+    ProofOfHumanityMock,
+    CoreMembersGroupMock,
+} from "../typechain-types";
+
 
 describe("ProofOfHumanityCirclesProxy", function () {
-  let proofOfHumanityCirclesProxy: any;
-  let proofOfHumanityMock: any;
-  let coreMembersGroupMock: any;
+  let proofOfHumanityCirclesProxy: ProofOfHumanityCirclesProxy;
+  let proofOfHumanityMock: ProofOfHumanityMock;
+  let coreMembersGroupMock: CoreMembersGroupMock;
   let owner: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
@@ -14,7 +20,7 @@ describe("ProofOfHumanityCirclesProxy", function () {
 
   beforeEach(async function () {
     [owner, user1, user2] = await ethers.getSigners();
-
+    
     const ProofOfHumanityMockFactory = await ethers.getContractFactory("ProofOfHumanityMock");
     proofOfHumanityMock = await ProofOfHumanityMockFactory.deploy();
 
