@@ -28,8 +28,6 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     /// @notice Reference to the Proof of Humanity registry contract
     IProofOfHumanity public proofOfHumanity;
 
-    /// @notice Reference to the Hub contract
-   // IHubV2 public hub;
 
     /// @notice Reference to the Core Members Group contract
     ICoreMembersGroup public coreMembersGroup;
@@ -55,14 +53,6 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param humanityIDs The humanity IDs of the members removed
      */
     event MembersRemoved(bytes20[] humanityIDs);
-
-    /**
-     * @dev Emitted when a member is added to the Circles Group
-     * @param humanityID The humanity ID of the account to re-trust
-     * @param oldAccount The old account that was replaced
-     * @param newAccount The new account that replaced the old account
-     */
-    event TrustTransferred(bytes20 indexed humanityID, address indexed oldAccount, address indexed newAccount);
 
     /**
      * @dev Emitted when a member is renewed in the Circles Group
@@ -121,7 +111,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
         require(humanityIDToCriclesAccount[humanityID] == address(0), "Account is already registered");
 
         humanityIDToCriclesAccount[humanityID] = _account;
-          // trust will expire at the same time as the humanity.
+        // trust will expire at the same time as the humanity.
         address[] memory accounts = new address[](1);
         accounts[0] = _account;
         coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
@@ -146,7 +136,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
   
     /**
-     * @dev Untrusts/Removes expired or revoked accounts from the Circles Group
+     * @dev Untrusts/Removes revoked accounts from the Circles Group
      * @param humanityIDs humanity IDs of the expired or revoked accounts to untrust
      */
     function revokeTrust(bytes20[] memory humanityIDs) external {
