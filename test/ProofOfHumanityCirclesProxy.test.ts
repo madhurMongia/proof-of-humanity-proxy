@@ -1,17 +1,12 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { 
-    ProofOfHumanityCirclesProxy,
-    ProofOfHumanityMock,
-    CoreMembersGroupMock,
-} from "../typechain-types";
-
 
 describe("ProofOfHumanityCirclesProxy", function () {
-  let proofOfHumanityCirclesProxy: ProofOfHumanityCirclesProxy;
-  let proofOfHumanityMock: ProofOfHumanityMock;
-  let coreMembersGroupMock: CoreMembersGroupMock;
+  let proofOfHumanityCirclesProxy: any;
+  let proofOfHumanityMock: any;
+  let coreMembersGroupMock: any;
+  let crossChainProofOfHumanityMock: any;
   let owner: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
@@ -20,25 +15,27 @@ describe("ProofOfHumanityCirclesProxy", function () {
 
   beforeEach(async function () {
     [owner, user1, user2] = await ethers.getSigners();
-    
+
     const ProofOfHumanityMockFactory = await ethers.getContractFactory("ProofOfHumanityMock");
     proofOfHumanityMock = await ProofOfHumanityMockFactory.deploy();
 
     const CoreMembersGroupMockFactory = await ethers.getContractFactory("CoreMembersGroupMock");
     coreMembersGroupMock = await CoreMembersGroupMockFactory.deploy();
 
+    const CrossChainProofOfHumanityMockFactory = await ethers.getContractFactory("CrossChainProofOfHumanityMock");
+    crossChainProofOfHumanityMock = await CrossChainProofOfHumanityMockFactory.deploy();
+
     const ProofOfHumanityCirclesProxyFactory = await ethers.getContractFactory("ProofOfHumanityCirclesProxy");
     proofOfHumanityCirclesProxy = await ProofOfHumanityCirclesProxyFactory.deploy(
       await proofOfHumanityMock.getAddress(),
-      await coreMembersGroupMock.getAddress()
+      await coreMembersGroupMock.getAddress(),
+      await crossChainProofOfHumanityMock.getAddress()
     );
 
     humanityID = "0x" + ethers.keccak256(ethers.toUtf8Bytes("test")).substring(2, 42);
     expirationTime = Math.floor(Date.now() / 1000) + 3600;
 
-    await proofOfHumanityMock.mockIsHuman(user1.address, true);
     await proofOfHumanityMock.mockIsClaimed(humanityID, true);
-    await proofOfHumanityMock.mockHumanityOf(user1.address, humanityID);
     
     const humanityInfo = {
       vouching: false,
@@ -50,6 +47,15 @@ describe("ProofOfHumanityCirclesProxy", function () {
     };
     await proofOfHumanityMock.mockGetHumanityInfo(humanityID, humanityInfo);
 
+    // Mock CrossChainProofOfHumanity data
+    const crossChainHumanity = {
+      owner: user1.address,
+      expirationTime: expirationTime,
+      lastTransferTime: Math.floor(Date.now() / 1000) - 86400, // 1 day ago
+      isHomeChain: true
+    };
+    await crossChainProofOfHumanityMock.mockHumanityData(humanityID, crossChainHumanity);
+
     await coreMembersGroupMock.reset();
   });
 
@@ -57,13 +63,13 @@ describe("ProofOfHumanityCirclesProxy", function () {
     it("Should initialize with correct values", async function () {
       expect(await proofOfHumanityCirclesProxy.proofOfHumanity()).to.equal(await proofOfHumanityMock.getAddress());
       expect(await proofOfHumanityCirclesProxy.coreMembersGroup()).to.equal(await coreMembersGroupMock.getAddress());
+      expect(await proofOfHumanityCirclesProxy.crossChainProofOfHumanity()).to.equal(await crossChainProofOfHumanityMock.getAddress());
       expect(await proofOfHumanityCirclesProxy.governor()).to.equal(owner.address);
-      expect(await proofOfHumanityCirclesProxy.UNTRUST_EXPIRY_TIMESTAMP()).to.equal(0);
     });
   });
 
   describe("Governance Functions", function () {
-    it("Should allow governor to   change Proof of Humanity address", async function () {
+    it("Should allow governor to change Proof of Humanity address", async function () {
       const newPoHMock = await (await ethers.getContractFactory("ProofOfHumanityMock")).deploy();
       
       await proofOfHumanityCirclesProxy.connect(owner).changeProofOfHumanity(await newPoHMock.getAddress());
@@ -109,7 +115,7 @@ describe("ProofOfHumanityCirclesProxy", function () {
   });
 
   describe("Register", function () {
-    it("Should register a new account successfully", async function () {
+    it("Should register a new account successfully on home chain", async function () {
       const circlesAccount = ethers.Wallet.createRandom().address;
       
       const tx = await proofOfHumanityCirclesProxy.connect(user1).register(humanityID, circlesAccount);
@@ -122,6 +128,33 @@ describe("ProofOfHumanityCirclesProxy", function () {
       
       expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
       expect(await coreMembersGroupMock.lastTrustExpiry()).to.equal(expirationTime);
+    });
+
+    it("Should register a new account successfully on non-home chain", async function () {
+      // Set up non-home chain data
+      const nonHomeChainHumanityID = "0x" + ethers.keccak256(ethers.toUtf8Bytes("nonHomeChain")).substring(2, 42);
+      const nonHomeChainExpiry = Math.floor(Date.now() / 1000) + 7200; // 2 hours from now
+
+      const crossChainHumanity = {
+        owner: user1.address,
+        expirationTime: nonHomeChainExpiry,
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400, // 1 day ago
+        isHomeChain: false
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(nonHomeChainHumanityID, crossChainHumanity);
+
+      const circlesAccount = ethers.Wallet.createRandom().address;
+      
+      const tx = await proofOfHumanityCirclesProxy.connect(user1).register(nonHomeChainHumanityID, circlesAccount);
+
+      await expect(tx)
+        .to.emit(proofOfHumanityCirclesProxy, "MemberRegistered")
+        .withArgs(nonHomeChainHumanityID, circlesAccount);
+  
+      expect(await proofOfHumanityCirclesProxy.humanityIDToCriclesAccount(nonHomeChainHumanityID)).to.equal(circlesAccount);
+      
+      expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
+      expect(await coreMembersGroupMock.lastTrustExpiry()).to.equal(nonHomeChainExpiry);
     });
 
     it("Should revert if caller is not the owner of humanity ID", async function () {
@@ -153,7 +186,7 @@ describe("ProofOfHumanityCirclesProxy", function () {
       await coreMembersGroupMock.reset();
     });
 
-    it("Should renew trust successfully", async function () {
+    it("Should renew trust successfully on home chain", async function () {
       const newExpirationTime = expirationTime + 3600;
       const updatedHumanityInfo = {
         vouching: false,
@@ -165,13 +198,38 @@ describe("ProofOfHumanityCirclesProxy", function () {
       };
       await proofOfHumanityMock.mockGetHumanityInfo(humanityID, updatedHumanityInfo);
 
-      await proofOfHumanityCirclesProxy.connect(user1).renewTrust(humanityID);
+      const tx = await proofOfHumanityCirclesProxy.connect(user1).renewTrust(humanityID);
+      await expect(tx)
+        .to.emit(proofOfHumanityCirclesProxy, "TrustRenewed")
+        .withArgs(humanityID, circlesAccount);
       
       expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
       expect(await coreMembersGroupMock.lastTrustExpiry()).to.equal(newExpirationTime);
     });
 
-    it("Should allow anyone to call renewTrust, not just the owner (security vulnerability)", async function () {
+    it("Should renew trust successfully on non-home chain", async function () {
+      // Set up non-home chain data
+      const nonHomeChainExpiry = expirationTime + 7200; // 2 hours more
+
+      // Update to non-home chain
+      const crossChainHumanity = {
+        owner: user1.address,
+        expirationTime: nonHomeChainExpiry,
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400, // 1 day ago
+        isHomeChain: false
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(humanityID, crossChainHumanity);
+
+      const tx = await proofOfHumanityCirclesProxy.connect(user1).renewTrust(humanityID);
+      await expect(tx)
+        .to.emit(proofOfHumanityCirclesProxy, "TrustRenewed")
+        .withArgs(humanityID, circlesAccount);
+      
+      expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
+      expect(await coreMembersGroupMock.lastTrustExpiry()).to.equal(nonHomeChainExpiry);
+    });
+
+    it("Should allow anyone to call renewTrust", async function () {
       const newExpirationTime = expirationTime + 3600;
       const updatedHumanityInfo = {
         vouching: false,
@@ -183,7 +241,10 @@ describe("ProofOfHumanityCirclesProxy", function () {
       };
       await proofOfHumanityMock.mockGetHumanityInfo(humanityID, updatedHumanityInfo);
 
-      await proofOfHumanityCirclesProxy.connect(user2).renewTrust(humanityID);
+      const tx = await proofOfHumanityCirclesProxy.connect(user2).renewTrust(humanityID);
+      await expect(tx)
+        .to.emit(proofOfHumanityCirclesProxy, "TrustRenewed")
+        .withArgs(humanityID, circlesAccount);
       
       expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
       expect(await coreMembersGroupMock.lastTrustExpiry()).to.equal(newExpirationTime);
@@ -214,6 +275,15 @@ describe("ProofOfHumanityCirclesProxy", function () {
       await proofOfHumanityMock.mockGetHumanityInfo(humanityID2, humanityInfo2);
       await proofOfHumanityMock.mockIsClaimed(humanityID2, true);
       
+      // Mock CrossChainProofOfHumanity data for humanityID2
+      const crossChainHumanity = {
+        owner: user1.address,
+        expirationTime: expirationTime,
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400, // 1 day ago
+        isHomeChain: true
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(humanityID2, crossChainHumanity);
+      
       await proofOfHumanityCirclesProxy.connect(user1).register(humanityID1, circlesAccount1);
       await proofOfHumanityCirclesProxy.connect(user1).register(humanityID2, circlesAccount2);
       
@@ -228,7 +298,8 @@ describe("ProofOfHumanityCirclesProxy", function () {
       const tx = await proofOfHumanityCirclesProxy.revokeTrust(humanityIDs);
       
       await expect(tx)
-        .to.emit(proofOfHumanityCirclesProxy, "MembersRemoved");
+        .to.emit(proofOfHumanityCirclesProxy, "MembersRemoved")
+        .withArgs(humanityIDs);
       
       expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
       expect(await coreMembersGroupMock.lastTrustExpiry()).to.equal(0);

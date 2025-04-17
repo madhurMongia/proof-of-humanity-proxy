@@ -12,6 +12,7 @@ pragma solidity >=0.8.28;
 import "./interfaces/IProofOfHumanity.sol";
 import "./interfaces/ICoreMembersGroup.sol";
 import "./interfaces/IProofOfHumanityCirclesProxy.sol";
+import "./interfaces/ICrossChainProofOfHumanity.sol";
 /**
  * @title ProofOfHumanityCirclesProxy
  * @dev A proxy contract that bridges Proof of Humanity verification with Circles.
@@ -19,19 +20,19 @@ import "./interfaces/IProofOfHumanityCirclesProxy.sol";
  */
 contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
-    /// @notice Constant value for untrusting a member (setting expiry to 0)
-    uint96 public constant UNTRUST_EXPIRY_TIMESTAMP = 0;
-
     /// @dev Address with administrative privileges
     address public governor;
 
     /// @notice Reference to the Proof of Humanity registry contract
     IProofOfHumanity public proofOfHumanity;
 
-
     /// @notice Reference to the Core Members Group contract
     ICoreMembersGroup public coreMembersGroup;
 
+    /// @notice Reference to the CrossChainProofOfHumanity contract
+    ICrossChainProofOfHumanity public crossChainProofOfHumanity;
+
+    /// @notice Mapping to store the Circles account for each humanity ID
     mapping(bytes20 => address) public humanityIDToCriclesAccount;
     /**
      * @dev Restricts function access to the governor only
@@ -66,9 +67,10 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param _proofOfHumanity Address of the Proof of Humanity registry contract
      * @param _coreMembersGroup Address of the POH Core Members Group contract
      */
-    constructor(address _proofOfHumanity, address _coreMembersGroup) {
+    constructor(address _proofOfHumanity, address _coreMembersGroup, address _crossChainProofOfHumanity) {
         proofOfHumanity = IProofOfHumanity(_proofOfHumanity);
         coreMembersGroup = ICoreMembersGroup(_coreMembersGroup);
+        crossChainProofOfHumanity = ICrossChainProofOfHumanity(_crossChainProofOfHumanity);
         governor = msg.sender; // Set deployer as initial governor
     }
 
@@ -91,6 +93,15 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
     }
 
     /**
+     * @dev Updates the address of the CrossChainProofOfHumanity contract
+     * @param _crossChainProofOfHumanity New address for the CrossChainProofOfHumanity contract
+     * Can only be called by the governor
+     */
+    function changeCrossChainProofOfHumanity(address _crossChainProofOfHumanity) external onlyGovernor {
+        crossChainProofOfHumanity = ICrossChainProofOfHumanity(_crossChainProofOfHumanity);
+    }
+
+    /**
      * @dev Transfers governorship to a new address
      * @param _newGovernor Address of the new governor
      * Can only be called by the current governor
@@ -105,7 +116,17 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param _account Address of the circles account to trust in POH group
      */
     function register(bytes20 humanityID, address _account) external {
-        (,,,uint40 expirationTime,address owner,) = proofOfHumanity.getHumanityInfo(humanityID);
+        ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
+
+        uint40 expirationTime;
+        address owner;
+        if(crossChainHumanity.isHomeChain){
+            (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
+        }
+        else {
+            expirationTime = crossChainHumanity.expirationTime;
+            owner = crossChainHumanity.owner;
+        }
 
         require(owner == msg.sender, "You are not the owner of this humanity ID");
         require(humanityIDToCriclesAccount[humanityID] == address(0), "Account is already registered");
@@ -124,7 +145,18 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param humanityID The humanity ID of the account to re-trust
      */
     function renewTrust(bytes20 humanityID) external {
-        (,,,uint40 expirationTime,,) = proofOfHumanity.getHumanityInfo(humanityID);
+        ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
+
+        uint40 expirationTime;
+        address owner;
+        if(crossChainHumanity.isHomeChain){
+            (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
+        }
+        else {
+            expirationTime = crossChainHumanity.expirationTime;
+            owner = crossChainHumanity.owner;
+        }
+
         address account = humanityIDToCriclesAccount[humanityID];
 
         address[] memory accounts = new address[](1);
@@ -149,7 +181,8 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
             require(!isHuman, "Account is still registered as human");
             accounts[i] = humanityIDToCriclesAccount[humanityID];
         }
-        coreMembersGroup.trustBatchWithConditions(accounts, UNTRUST_EXPIRY_TIMESTAMP);
+        // setting the expiry timestamp to 0 means untrusting the account
+        coreMembersGroup.trustBatchWithConditions(accounts, 0);
 
         emit MembersRemoved(humanityIDs);
     }
