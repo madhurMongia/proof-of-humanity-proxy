@@ -116,16 +116,16 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param _account Address of the circles account to trust in POH group
      */
     function register(bytes20 humanityID, address _account) external {
-        ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
-
         uint40 expirationTime;
         address owner;
-        if(crossChainHumanity.isHomeChain){
-            (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
-        }
-        else {
-            expirationTime = crossChainHumanity.expirationTime;
-            owner = crossChainHumanity.owner;
+        (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
+
+        if(owner == address(0)){
+            ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
+            if(!crossChainHumanity.isHomeChain){
+                expirationTime = crossChainHumanity.expirationTime;
+                owner = crossChainHumanity.owner;
+            }
         }
 
         require(owner == msg.sender, "You are not the owner of this humanity ID");
@@ -145,18 +145,18 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      * @param humanityID The humanity ID of the account to re-trust
      */
     function renewTrust(bytes20 humanityID) external {
-        ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
-
         uint40 expirationTime;
         address owner;
-        if(crossChainHumanity.isHomeChain){
-            (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
-        }
-        else {
-            expirationTime = crossChainHumanity.expirationTime;
-            owner = crossChainHumanity.owner;
-        }
+        (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
 
+        if(owner == address(0)){
+            ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
+            if(!crossChainHumanity.isHomeChain){
+                expirationTime = crossChainHumanity.expirationTime;
+                owner = crossChainHumanity.owner;
+            }
+        }
+        require(owner != address(0),"Humanity ID is not claimed");
         address account = humanityIDToCriclesAccount[humanityID];
 
         address[] memory accounts = new address[](1);
@@ -169,7 +169,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
   
     /**
      * @dev Untrusts/Removes revoked accounts from the Circles Group
-     * @param humanityIDs humanity IDs of the expired or revoked accounts to untrust
+     * @param humanityIDs humanity IDs of revoked accounts to untrust
      */
     function revokeTrust(bytes20[] memory humanityIDs) external {
         uint256 length = humanityIDs.length;
@@ -177,7 +177,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
         address[] memory accounts = new address[](length);
         for(uint256 i = 0; i < length; i++){
             humanityID = humanityIDs[i];
-            bool isHuman = proofOfHumanity.isClaimed(humanityID);
+            bool isHuman = crossChainProofOfHumanity.isClaimed(humanityID);
             require(!isHuman, "Account is still registered as human");
             accounts[i] = humanityIDToCriclesAccount[humanityID];
         }
