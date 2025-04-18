@@ -34,6 +34,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
     /// @notice Mapping to store the Circles account for each humanity ID
     mapping(bytes20 => address) public humanityIDToCriclesAccount;
+    
     /**
      * @dev Restricts function access to the governor only
      * Provides administrative protection for sensitive operations
@@ -181,7 +182,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
             require(!isHuman, "Account is still registered as human");
             accounts[i] = humanityIDToCriclesAccount[humanityID];
         }
-        // setting the expiry timestamp to 0 means untrusting the account
+        // setting the expiry timestamp to 0 means untrusting the account.
         coreMembersGroup.trustBatchWithConditions(accounts, 0);
 
         emit MembersRemoved(humanityIDs);
