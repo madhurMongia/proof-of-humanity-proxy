@@ -126,10 +126,10 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
         }
         else{
             ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
-            if(!crossChainHumanity.isHomeChain){
-                expirationTime = crossChainHumanity.expirationTime;
-            }
+            require(!crossChainHumanity.isHomeChain, "Humanity ID is not claimed");
+            expirationTime = crossChainHumanity.expirationTime;
         }
+
         require(humanityIDToCriclesAccount[humanityID] == address(0), "Account is already registered");
         humanityIDToCriclesAccount[humanityID] = _account;
         // trust will expire at the same time as the humanity.
@@ -154,9 +154,8 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
         }
         else{
             ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
-            if(!crossChainHumanity.isHomeChain){
-                expirationTime = crossChainHumanity.expirationTime;
-            }
+            require(!crossChainHumanity.isHomeChain, "Humanity ID is not claimed");
+            expirationTime = crossChainHumanity.expirationTime;
         }
 
         address account = humanityIDToCriclesAccount[humanityID];
@@ -177,7 +176,13 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
         address[] memory accounts = new address[](length);
         for(uint256 i = 0; i < length; i++){
             humanityID = humanityIDs[i];
-            bool isHuman = crossChainProofOfHumanity.isClaimed(humanityID);
+            bool isHuman = proofOfHumanity.isClaimed(humanityID);
+            if(!isHuman){
+                ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
+                isHuman = (!crossChainHumanity.isHomeChain) 
+                && (crossChainHumanity.owner != address(0)) 
+                && (crossChainHumanity.expirationTime >= block.timestamp);
+            }
             require(!isHuman, "Account is still registered as human");
             accounts[i] = humanityIDToCriclesAccount[humanityID];
         }
