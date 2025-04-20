@@ -24,4 +24,11 @@ interface ICrossChainProofOfHumanity {
      * @return Whether humanity is claimed
      */
     function isClaimed(bytes20 _humanityId) external view returns (bool);
+
+    /**
+     * @dev Returns the owner address bound to a specific humanity ID.
+     * @param _humanityId The ID of the humanity.
+     * @return The owner address.
+     */
+    function boundTo(bytes20 _humanityId) external view returns (address);
 }

@@ -34,7 +34,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
 
     /// @notice Mapping to store the Circles account for each humanity ID
     mapping(bytes20 => address) public humanityIDToCriclesAccount;
-    
+
     /**
      * @dev Restricts function access to the governor only
      * Provides administrative protection for sensitive operations
@@ -118,20 +118,19 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      */
     function register(bytes20 humanityID, address _account) external {
         uint40 expirationTime;
-        address owner;
-        (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
+        address owner = crossChainProofOfHumanity.boundTo(humanityID);
+        require(owner == msg.sender, "You are not the owner of this humanity ID");
 
-        if(owner == address(0)){
+        if(proofOfHumanity.isHuman(owner)){
+            (,,,expirationTime,,) = proofOfHumanity.getHumanityInfo(humanityID);
+        }
+        else{
             ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
             if(!crossChainHumanity.isHomeChain){
                 expirationTime = crossChainHumanity.expirationTime;
-                owner = crossChainHumanity.owner;
             }
         }
-
-        require(owner == msg.sender, "You are not the owner of this humanity ID");
         require(humanityIDToCriclesAccount[humanityID] == address(0), "Account is already registered");
-
         humanityIDToCriclesAccount[humanityID] = _account;
         // trust will expire at the same time as the humanity.
         address[] memory accounts = new address[](1);
@@ -147,23 +146,23 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
      */
     function renewTrust(bytes20 humanityID) external {
         uint40 expirationTime;
-        address owner;
-        (,,,expirationTime,owner,) = proofOfHumanity.getHumanityInfo(humanityID);
+        address owner = crossChainProofOfHumanity.boundTo(humanityID);
+        require(owner != address(0), "Humanity ID is not claimed");
 
-        if(owner == address(0)){
+        if(proofOfHumanity.isHuman(owner)){
+            (,,,expirationTime,,) = proofOfHumanity.getHumanityInfo(humanityID);
+        }
+        else{
             ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
             if(!crossChainHumanity.isHomeChain){
                 expirationTime = crossChainHumanity.expirationTime;
-                owner = crossChainHumanity.owner;
             }
         }
-        require(owner != address(0),"Humanity ID is not claimed");
-        address account = humanityIDToCriclesAccount[humanityID];
 
+        address account = humanityIDToCriclesAccount[humanityID];
         address[] memory accounts = new address[](1);
         accounts[0] = account;
         coreMembersGroup.trustBatchWithConditions(accounts, uint96(expirationTime));
-
         emit TrustRenewed(humanityID, account);
     }
 

@@ -17,6 +17,10 @@ contract CrossChainProofOfHumanityMock is ICrossChainProofOfHumanity {
     function mockIsClaimed(bytes20 _humanityId, bool _status) external {
         _isClaimed[_humanityId] = _status;
     }
+
+    function mockBoundTo(bytes20 _humanityId, address _owner) external {
+        _boundTo[_humanityId] = _owner;
+    }
     
     function humanityData(bytes20 _humanityId) external view override returns (CrossChainHumanity memory) {
         return _humanityData[_humanityId];
@@ -24,5 +28,9 @@ contract CrossChainProofOfHumanityMock is ICrossChainProofOfHumanity {
 
     function isClaimed(bytes20 _humanityId) external view override returns (bool) {
         return _isClaimed[_humanityId];
+    }
+
+    function boundTo(bytes20 _humanityId) external view override returns (address) {
+        return _boundTo[_humanityId];
     }
 } 
