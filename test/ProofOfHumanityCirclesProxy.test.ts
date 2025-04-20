@@ -186,15 +186,34 @@ describe("ProofOfHumanityCirclesProxy", function () {
       ).to.be.revertedWith("You are not the owner of this humanity ID");
     });
 
-    it("Should revert humanity ID is not claimed", async function () {
-        const circlesAccount = ethers.Wallet.createRandom().address;
-        
-        await crossChainProofOfHumanityMock.mockBoundTo(humanityID, ethers.ZeroAddress); 
-        
-        await expect(
-          proofOfHumanityCirclesProxy.connect(user1).register(humanityID, circlesAccount)
-        ).to.be.revertedWith("You are not the owner of this humanity ID");
-      });
+    it("Should revert when humanity ID is not claimed", async function () {
+      const circlesAccount = ethers.Wallet.createRandom().address;
+      
+      await crossChainProofOfHumanityMock.mockBoundTo(humanityID, ethers.ZeroAddress); 
+      
+      await expect(
+        proofOfHumanityCirclesProxy.connect(user1).register(humanityID, circlesAccount)
+      ).to.be.revertedWith("You are not the owner of this humanity ID");
+    });
+
+    it("Should revert when humanity ID is set as homeChain in cross-chain data", async function () {
+      const circlesAccount = ethers.Wallet.createRandom().address;
+      
+      await crossChainProofOfHumanityMock.mockBoundTo(humanityID, user1.address);
+      await proofOfHumanityMock.mockIsHuman(user1.address, false);
+      
+      const crossChainHumanityData = {
+        owner: user1.address,
+        expirationTime: expirationTime,
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400,
+        isHomeChain: true // Setting isHomeChain to true
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(humanityID, crossChainHumanityData);
+      
+      await expect(
+        proofOfHumanityCirclesProxy.connect(user1).register(humanityID, circlesAccount)
+      ).to.be.revertedWith("Humanity ID is not claimed");
+    });
 
     it("Should revert if account is already registered", async function () {
       const circlesAccount1 = ethers.Wallet.createRandom().address;
@@ -270,7 +289,24 @@ describe("ProofOfHumanityCirclesProxy", function () {
         
         await expect(
           proofOfHumanityCirclesProxy.connect(user1).renewTrust(humanityID)
-        ).to.be.revertedWith("You are not the owner of this humanity ID");
+        ).to.be.revertedWith("Humanity ID is not claimed");
+    });
+
+    it("Should revert when humanity ID is set as homeChain in cross-chain data", async function () {
+      await crossChainProofOfHumanityMock.mockBoundTo(humanityID, user1.address);
+      await proofOfHumanityMock.mockIsHuman(user1.address, false);
+      
+      const crossChainHumanityData = {
+        owner: user1.address,
+        expirationTime: expirationTime,
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400,
+        isHomeChain: true // Setting isHomeChain to true
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(humanityID, crossChainHumanityData);
+      
+      await expect(
+        proofOfHumanityCirclesProxy.connect(user1).renewTrust(humanityID)
+      ).to.be.revertedWith("Humanity ID is not claimed");
     });
   });
 
@@ -301,8 +337,28 @@ describe("ProofOfHumanityCirclesProxy", function () {
       await proofOfHumanityMock.mockGetHumanityInfo(humanityID2, humanityInfo2);
       await proofOfHumanityCirclesProxy.connect(user2).register(humanityID2, circlesAccount2);
       
+      // Properly update both mocks to ensure our tests pass
+      await proofOfHumanityMock.mockIsClaimed(humanityID1, false);
+      await proofOfHumanityMock.mockIsClaimed(humanityID2, false);
       await crossChainProofOfHumanityMock.mockIsClaimed(humanityID1, false);
       await crossChainProofOfHumanityMock.mockIsClaimed(humanityID2, false);
+      
+      // Set cross-chain humanity as not active anymore
+      const expiredCrossChainData1 = {
+        owner: user1.address,
+        expirationTime: Math.floor(Date.now() / 1000) - 1000, // expired
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400,
+        isHomeChain: false
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(humanityID1, expiredCrossChainData1);
+      
+      const expiredCrossChainData2 = {
+        owner: user2.address,
+        expirationTime: Math.floor(Date.now() / 1000) - 1000, // expired
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400,
+        isHomeChain: false
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(humanityID2, expiredCrossChainData2);
       
       await coreMembersGroupMock.reset();
     });
@@ -333,22 +389,40 @@ describe("ProofOfHumanityCirclesProxy", function () {
         expect(await coreMembersGroupMock.getLastCalledExpiry()).to.equal(0);
       });
   
-      it("Should handle an empty array gracefully", async function () {
-        const humanityIDs: string[] = [];
-        const tx = await proofOfHumanityCirclesProxy.revokeTrust(humanityIDs);
-        
-        await expect(tx)
-          .to.emit(proofOfHumanityCirclesProxy, "MembersRemoved")
-          .withArgs(humanityIDs);
-        
-        expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
-        expect(await coreMembersGroupMock.getLastCalledMembers()).to.deep.equal([]);
-        expect(await coreMembersGroupMock.getLastCalledExpiry()).to.equal(0);
-      });
+    it("Should handle an empty array gracefully", async function () {
+      const humanityIDs: string[] = [];
+      const tx = await proofOfHumanityCirclesProxy.revokeTrust(humanityIDs);
+      
+      await expect(tx)
+        .to.emit(proofOfHumanityCirclesProxy, "MembersRemoved")
+        .withArgs(humanityIDs);
+      
+      expect(await coreMembersGroupMock.trustBatchWasCalled()).to.be.true;
+      expect(await coreMembersGroupMock.getLastCalledMembers()).to.deep.equal([]);
+      expect(await coreMembersGroupMock.getLastCalledExpiry()).to.equal(0);
+    });
 
-    it("Should revert if any humanity ID in the array is still claimed", async function () {
+    it("Should revert if any humanity ID in the array is still claimed in POH", async function () {
+      await proofOfHumanityMock.mockIsClaimed(humanityID1, true);
       await crossChainProofOfHumanityMock.mockIsClaimed(humanityID1, false);
-      await crossChainProofOfHumanityMock.mockIsClaimed(humanityID2, true);
+      
+      const humanityIDs = [humanityID1, humanityID2];
+      await expect(
+        proofOfHumanityCirclesProxy.revokeTrust(humanityIDs)
+      ).to.be.revertedWith("Account is still registered as human");
+    });
+
+    it("Should revert if any humanity ID in the array is still active in cross-chain", async function () {
+      await proofOfHumanityMock.mockIsClaimed(humanityID2, false);
+      
+      // Make the second humanity still active in cross-chain
+      const activeCrossChainData = {
+        owner: user2.address,
+        expirationTime: Math.floor(Date.now() / 1000) + 3600, // still valid
+        lastTransferTime: Math.floor(Date.now() / 1000) - 86400,
+        isHomeChain: false
+      };
+      await crossChainProofOfHumanityMock.mockHumanityData(humanityID2, activeCrossChainData);
       
       const humanityIDs = [humanityID1, humanityID2];
       await expect(

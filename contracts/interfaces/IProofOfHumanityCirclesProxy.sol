@@ -20,6 +20,12 @@ interface IProofOfHumanityCirclesProxy {
     function changeCoreMembersGroup(address _coreMembersGroup) external;
 
     /**
+     * @dev Updates the address of the CrossChainProofOfHumanity contract
+     * @param _crossChainProofOfHumanity New address for the CrossChainProofOfHumanity contract
+     */
+    function changeCrossChainProofOfHumanity(address _crossChainProofOfHumanity) external;
+
+    /**
      * @dev Transfers governorship to a new address
      * @param _newGovernor Address of the new governor
      */
