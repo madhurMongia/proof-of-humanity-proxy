@@ -22,6 +22,10 @@ contract CrossChainProofOfHumanityMock is ICrossChainProofOfHumanity {
         _boundTo[_humanityId] = _owner;
     }
     
+    function mockIsHuman(address _address, bool _status) external {
+        _isHuman[_address] = _status;
+    }
+    
     function humanityData(bytes20 _humanityId) external view override returns (CrossChainHumanity memory) {
         return _humanityData[_humanityId];
     }
@@ -32,5 +36,9 @@ contract CrossChainProofOfHumanityMock is ICrossChainProofOfHumanity {
 
     function boundTo(bytes20 _humanityId) external view override returns (address) {
         return _boundTo[_humanityId];
+    }
+    
+    function isHuman(address _address) external view override returns (bool) {
+        return _isHuman[_address];
     }
 } 

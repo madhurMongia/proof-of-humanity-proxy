@@ -176,13 +176,7 @@ contract ProofOfHumanityCirclesProxy is IProofOfHumanityCirclesProxy {
         address[] memory accounts = new address[](length);
         for(uint256 i = 0; i < length; i++){
             humanityID = humanityIDs[i];
-            bool isHuman = proofOfHumanity.isClaimed(humanityID);
-            if(!isHuman){
-                ICrossChainProofOfHumanity.CrossChainHumanity memory crossChainHumanity = crossChainProofOfHumanity.humanityData(humanityID);
-                isHuman = (!crossChainHumanity.isHomeChain) 
-                && (crossChainHumanity.owner != address(0)) 
-                && (crossChainHumanity.expirationTime >= block.timestamp);
-            }
+            bool isHuman = crossChainProofOfHumanity.isHuman(crossChainProofOfHumanity.boundTo(humanityID));
             require(!isHuman, "Account is still registered as human");
             accounts[i] = humanityIDToCriclesAccount[humanityID];
         }

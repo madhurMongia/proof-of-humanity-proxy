@@ -31,4 +31,11 @@ interface ICrossChainProofOfHumanity {
      * @return The owner address.
      */
     function boundTo(bytes20 _humanityId) external view returns (address);
+
+    /**
+     * @dev Checks if a humanity ID is registered as human.
+     * @param _account The address of the account to check.
+     * @return Whether the account is registered as human.
+     */
+    function isHuman(address _account) external view returns (bool);
 }
